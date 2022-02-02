@@ -1,0 +1,169 @@
+---
+title: "MATH 208 Final Project"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r library setup}
+library(tidyverse)
+library(rpart)
+library(rpart.plot)
+FlixGem <- read_csv("Final_Project_FlixGem.csv")
+head(FlixGem)
+```
+
+## Task 1: Data wrangling and exploratory data analyses
+
+```{r T1a}
+FlixGem_task1 <- filter(FlixGem, `Series or Movie`=="Movie") %>% drop_na(`Hidden Gem Score`)
+head(FlixGem_task1)
+
+FlixGem_task1 %>% group_by(Languages) %>% summarise(count=n()) 
+
+
+ggplot(FlixGem_task1,aes(x = Runtime, y = `Hidden Gem Score`)) + geom_boxplot() + xlab("") + ylab("Hidden Gem Score")
+
+ggplot(FlixGem_task1,aes(x = `Hidden Gem Score`, group = Runtime,fill = Runtime)) + geom_histogram(bins=25,col="black") +
+facet_wrap(~Runtime)
+
+
+
+
+FlixGem_task1_language = FlixGem_task1 %>% drop_na(Languages) 
+s <- strsplit(FlixGem_task1_language$Languages, split = ",")
+Language_table = data.frame(Title= rep(FlixGem_task1_language$Title, sapply(s, length)),`Hidden Gem Score` = rep(FlixGem_task1_language$`Hidden Gem Score`, sapply(s, length)), Languages = unlist(s))
+Language_table
+Language_table = Language_table %>% group_by(Title,Hidden.Gem.Score) %>% summarise(count=n())
+Language_table
+ggplot(Language_table ,aes(x = count, y = Hidden.Gem.Score, fill = count, group = count)) + geom_boxplot() + xlab("counts of languagesco") + ylab("Hidden Gem Score")
+
+
+
+
+
+
+
+```
+
+
+
+
+
+```{r T1b}
+#IMDb, Rotten Tomatoes, Metacritic
+FlixGem_task1 <- filter(FlixGem, `Series or Movie`=="Movie")
+
+FlixGem_task1_IMDb = FlixGem_task1 %>% drop_na(`IMDb Score`) %>% drop_na(`Hidden Gem Score`)
+
+FlixGem_task1_IMDb   %>% summarise(Cor_IMDB_score = cor(`IMDb Score`,`Hidden Gem Score`))
+
+
+
+ggplot(FlixGem_task1_IMDb,aes(x=`IMDb Score`,y=`Hidden Gem Score`, col=`IMDb Score`)) + geom_point()  +
+labs(x="IMDb", y="Hidden Gem Score",
+title="IMDb vs Hidden Gem Score") + theme(legend.position = "none") + geom_smooth(formula = y~x,method="lm",col="black")
+
+
+
+FlixGem_task1_tomato = FlixGem_task1 %>% drop_na(`Rotten Tomatoes Score`) %>% drop_na(`Hidden Gem Score`)
+
+FlixGem_task1_tomato  %>% summarise(Cor_tomato_score = cor(`Rotten Tomatoes Score`,`Hidden Gem Score`))
+
+ggplot(FlixGem_task1_tomato,aes(x=`Rotten Tomatoes Score`,y=`Hidden Gem Score`)) + geom_point(aes(colour="red"))  +
+labs(x="Rotten Tomatoes Score", y="Hidden Gem Score",
+title="Rotten Tomatoes Score vs Hidden Gem Score") + theme(legend.position = "none") + geom_smooth(formula = y~x,method="lm",col="black") 
+
+
+
+FlixGem_task1_Metacritic = FlixGem_task1 %>% drop_na(`Metacritic Score`) %>% drop_na(`Hidden Gem Score`)
+
+FlixGem_task1_Metacritic  %>% summarise(Cor_Metacritic_score = cor(`Metacritic Score`,`Hidden Gem Score`))
+
+ggplot(FlixGem_task1_Metacritic,aes(x=`Metacritic Score`,y=`Hidden Gem Score`, col=`Metacritic Score`)) + geom_point()  +
+labs(x="Metacritic Score", y="Hidden Gem Score",
+title="Metacritic Score vs Hidden Gem Score") + theme(legend.position = "none") + geom_smooth(formula = y~x, method="lm",col="black") 
+
+```
+
+```{r T1c}
+```
+
+## Task 2: Factors of the Hidden Gem Score
+
+```{r T2}
+#drop all the na values
+FlixGem_task2 = FlixGem  %>% drop_na(`Hidden Gem Score`)%>% drop_na(Languages) %>% drop_na(Runtime) %>% 
+  drop_na(`IMDb Score`) %>% drop_na(`Rotten Tomatoes Score`)  %>% drop_na(`Metacritic Score`) %>% select(`Hidden Gem Score`,Runtime,Languages,`IMDb Score`,`Rotten Tomatoes Score`,`Metacritic Score`,Title) 
+
+#split the language part to get the number of languages for each movie
+s <- strsplit(FlixGem_task2$Languages, split = ",")
+#rebuild the table 
+Language_table3 = data.frame(Title= rep(FlixGem_task2$Title,sapply(s, length)),
+                             Runtime= rep(FlixGem_task2$Runtime, sapply(s, length)),
+                            `Hidden Gem Score` = rep(FlixGem_task2$`Hidden Gem Score`, sapply(s, length)), 
+                            Languages = unlist(s),
+                            `Rotten Tomatoes Score` = rep(FlixGem_task2$`Rotten Tomatoes Score`, sapply(s, length)),
+                            `Metacritic Score` = rep(FlixGem_task2$`Metacritic Score`, sapply(s, length)),
+                            `IMDb Score` = rep(FlixGem_task2$`IMDb Score`, sapply(s, length))
+                            )
+
+Language_table3 = Language_table3 %>% group_by(Title,Hidden.Gem.Score) %>% mutate(num_of_language = n())
+#get the table with the following category
+Language_table3  = Language_table3[,c("Hidden.Gem.Score","Runtime","IMDb.Score","Rotten.Tomatoes.Score","Metacritic.Score","num_of_language")] 
+
+ 
+#factor the runtime 
+Language_table3$Runtime = factor(Language_table3$Runtime)
+
+#label all the categories
+`Hidden Gem Score` = Language_table3$Hidden.Gem.Score
+Runtime = Language_table3$Runtime
+`IMDb Score` = Language_table3$IMDb.Score
+`Rotten Tomatoes Score` = Language_table3$Rotten.Tomatoes.Score
+`Metacritic Score` = Language_table3$Metacritic.Score
+`num of language` = Language_table3$num_of_language
+#rpart to get a regression tree
+a = rpart(formula = `Hidden.Gem.Score` ~ Runtime + `IMDb Score` + `Rotten Tomatoes Score` + `Metacritic Score` + `num of language`,
+          data = Language_table3, method = "anova",
+         control = list(minsplit = 11, maxdepth = 8, cp = 0.003))
+#plot the regression tree
+rpart.plot(a)
+
+
+```
+
+## Task 3: An H-index for directors
+
+```{r T3}
+FlixGem_task3 <- FlixGem  %>% drop_na(`Hidden Gem Score`) %>% drop_na(Director)
+FlixGem_task3_count <- FlixGem_task3 %>% group_by(Director) %>% mutate(film_num = n()) %>% mutate(HG_H = NA)
+
+for (i in FlixGem_task3_count$Director){
+  counter = 1
+  idx = 1
+  score <- filter(FlixGem_task3_count, Director==i)$`Hidden Gem Score`
+  while (counter <= FlixGem_task3_count$film_num[idx]){
+    accumu = 0
+    for (s in score){
+      if(counter <= s){
+        accumu = accumu + 1
+      }
+    }
+    if (accumu >= counter){
+        FlixGem_task3_count$HG_H[idx] = counter
+    }
+    counter = counter + 1
+  }
+  idx = idx + 1
+}
+
+FlixGem_task3_count <- FlixGem_task3_count %>% arrange(desc(HG_H))
+FlixGem_task3_count[1:10]
+
+
+```
